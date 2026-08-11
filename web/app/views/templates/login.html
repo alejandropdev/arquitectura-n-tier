@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Iniciar sesión{% endblock %}
+{% block heading %}Iniciar sesión{% endblock %}
+{% block subtitle %}Ingrese sus credenciales{% endblock %}
+
+{% block content %}
+<form method="post" action="/login" novalidate>
+  <label for="username">Usuario</label>
+  <input id="username" name="username" type="text" value="{{ username|default('') }}"
+         autocomplete="username" required minlength="3" maxlength="32">
+
+  <label for="password">Contraseña</label>
+  <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+  <button type="submit">Entrar</button>
+</form>
+
+<p class="muted">¿No tiene cuenta? <a href="/register">Regístrese aquí</a></p>
+{% endblock %}

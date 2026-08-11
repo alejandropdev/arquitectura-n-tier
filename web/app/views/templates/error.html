@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block heading %}{{ title }}{% endblock %}
+{% block subtitle %}Código {{ status_code }}{% endblock %}
+
+{% block content %}
+<p class="alert alert-error">{{ message }}</p>
+<p class="muted">
+  El incidente quedó registrado en la bitácora del sistema.
+  <a href="/login">Volver al inicio</a>
+</p>
+{% endblock %}

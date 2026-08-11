@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Panel{% endblock %}
+{% block heading %}Hola, {{ user.username }}{% endblock %}
+{% block subtitle %}Sesión autenticada por el microservicio{% endblock %}
+
+{% block content %}
+<dl class="details">
+  <dt>Usuario</dt><dd>{{ user.username }}</dd>
+  <dt>Correo</dt><dd>{{ user.email }}</dd>
+  <dt>Identificador</dt><dd><code>{{ user.id }}</code></dd>
+</dl>
+
+<form method="post" action="/logout">
+  <button type="submit" class="secondary">Cerrar sesión</button>
+</form>
+{% endblock %}

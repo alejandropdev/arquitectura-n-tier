@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Portal de Autenticación{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="card">
+    <header>
+      <h1>{% block heading %}Portal de Autenticación{% endblock %}</h1>
+      <p class="subtitle">{% block subtitle %}Taller 1 — Arquitectura de Software{% endblock %}</p>
+    </header>
+
+    {% if errors %}
+      <ul class="alert alert-error">
+        {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if info %}
+      <p class="alert alert-info">{{ info }}</p>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <span>Tier 1 · Presentación (MVC)</span>
+  </footer>
+</body>
+</html>

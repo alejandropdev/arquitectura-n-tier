@@ -1,0 +1,111 @@
+# Despliegue del taller: arquitectura de 3 tiers con redundancia activa.
+#
+#            :8080                    :8081 (interno)
+#   navegador ──► gateway (nginx) ──► web-1 / web-2 ──► gateway ──► auth-service-1 / -2 ──► postgres
+#
+# Solo el gateway publica puertos; la base de datos nunca se expone al host.
+
+name: taller1-auth
+
+x-auth-env: &auth-env
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-auth}:${POSTGRES_PASSWORD:-auth}@postgres:5432/${POSTGRES_DB:-authdb}
+  JWT_SECRET: ${JWT_SECRET:-cambiame-en-produccion}
+  JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-30}
+  MAX_FAILED_ATTEMPTS: ${MAX_FAILED_ATTEMPTS:-5}
+  LOCKOUT_SECONDS: ${LOCKOUT_SECONDS:-300}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+x-web-env: &web-env
+  AUTH_SERVICE_URL: http://gateway:8081
+  AUTH_TIMEOUT_SECONDS: ${AUTH_TIMEOUT_SECONDS:-3}
+  RETRY_ATTEMPTS: ${RETRY_ATTEMPTS:-3}
+  BREAKER_FAILURE_THRESHOLD: ${BREAKER_FAILURE_THRESHOLD:-5}
+  BREAKER_RECOVERY_SECONDS: ${BREAKER_RECOVERY_SECONDS:-15}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+services:
+
+  # ---------------- TIER 3: datos ----------------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-auth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-auth}
+      POSTGRES_DB: ${POSTGRES_DB:-authdb}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:                      # detección de fallas
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-auth} -d ${POSTGRES_DB:-authdb}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped           # recuperación: reinicio automático
+    networks: [appnet]
+
+  # ---------------- TIER 2: lógica de negocio (redundancia activa) ----------------
+  auth-service-1:
+    build: ./auth-service
+    environment:
+      <<: *auth-env
+      INSTANCE_ID: auth-service-1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [appnet]
+
+  auth-service-2:
+    build: ./auth-service
+    environment:
+      <<: *auth-env
+      INSTANCE_ID: auth-service-2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [appnet]
+
+  # ---------------- TIER 1: presentación (redundancia activa) ----------------
+  web-1:
+    build: ./web
+    environment:
+      <<: *web-env
+      INSTANCE_ID: web-1
+    restart: unless-stopped
+    networks: [appnet]
+
+  web-2:
+    build: ./web
+    environment:
+      <<: *web-env
+      INSTANCE_ID: web-2
+    restart: unless-stopped
+    networks: [appnet]
+
+  # ---------------- Balanceador ----------------
+  gateway:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:8080"   # entrada de usuarios (Tier 1)
+      - "8081:8081"   # API del Tier 2 (expuesta solo para pruebas del taller)
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    # nginx resuelve los nombres de los upstreams al arrancar: los contenedores
+    # deben existir antes que él.
+    depends_on: [web-1, web-2, auth-service-1, auth-service-2]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/gateway/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks: [appnet]
+
+volumes:
+  pgdata:
+
+networks:
+  appnet:
+    driver: bridge
