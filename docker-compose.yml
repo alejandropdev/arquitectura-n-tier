@@ -96,7 +96,9 @@ services:
     # deben existir antes que él.
     depends_on: [web-1, web-2, auth-service-1, auth-service-2]
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/gateway/health || exit 1"]
+      # 127.0.0.1 y no `localhost`: en esta imagen `localhost` resuelve a ::1 y
+      # nginx escucha en IPv4, así que la sonda se conectaría al sitio equivocado.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/gateway/health || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 3
