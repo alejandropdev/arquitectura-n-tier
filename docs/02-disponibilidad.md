@@ -94,14 +94,49 @@ La redundancia de los tiers de cómputo ya alcanza los cuatro nueves; **el techo
 imponen los dos componentes no replicados**. Esto es un resultado del diseño, no
 una omisión: se documenta explícitamente qué falta para llegar a 99.99% de punta a punta.
 
+### 3.1 Alcance de la meta 99.99% en este taller
+
+El objetivo de disponibilidad se demuestra a nivel de **los tiers de cómputo**
+(presentación y lógica de negocio), que es la parte de la arquitectura que este
+taller pide diseñar, implementar y desplegar. El gateway y la base de datos quedan
+fuera de ese alcance **a propósito**, no por descuido, por dos razones concretas:
+
+1. **Son problemas de infraestructura, no de arquitectura de aplicación.**
+   Replicar un balanceador de entrada o una base de datos requiere mecanismos que
+   viven por debajo de la aplicación — IP virtual con `keepalived`/VRRP,
+   orquestación multi-nodo, replicación de motor de base de datos con failover
+   automático (Patroni, `repmgr`) — y que un despliegue de un único host con
+   Docker Compose no puede materializar de forma realista: no hay una segunda
+   máquina a la que fallar, y una VIP dentro de un solo host no protege contra
+   nada que la pérdida de ese host no rompa igual.
+2. **En un entorno real este SPOF normalmente ya viene resuelto por la
+   plataforma, no por la aplicación.** Un balanceador gestionado (AWS
+   ALB/NLB, Google Cloud Load Balancing, un Ingress de Kubernetes con varias
+   réplicas) o una base de datos gestionada multi-AZ (RDS Multi-AZ, Cloud SQL
+   HA) **ya son redundantes por diseño** sin que el equipo de la aplicación
+   tenga que reimplementar VRRP o failover de Postgres a mano. Construir esa
+   redundancia dentro de este taller sería reimplementar, con peor fiabilidad
+   y para fines puramente didácticos, algo que la infraestructura gestionada
+   resuelve mejor.
+
+Por eso la cifra que se reporta en la tabla de la sección 3 (**A_sistema ≈
+99.78%**) es honesta y no un intento fallido de llegar a 99.99%: separa con
+claridad lo que la arquitectura de la aplicación garantiza (redundancia activa
++ detección + recuperación automática en Tier 1 y Tier 2, verificado con
+`chaos.sh` en la sección 5) de lo que le corresponde resolver a la capa de
+infraestructura de despliegue en un entorno de producción real. Documentar el
+límite explícitamente — en vez de ocultarlo o forzar el número — es en sí mismo
+parte de la táctica de disponibilidad: un SPOF conocido y con mitigación
+definida es un riesgo gestionado, no una omisión.
+
 ## 4. Puntos únicos de falla y su mitigación en producción
 
-| SPOF | Riesgo | Mitigación propuesta |
-|---|---|---|
-| PostgreSQL | Pérdida total del servicio | Replicación primaria/secundaria con failover automático (Patroni), o base gestionada multi-AZ; copias de respaldo con PITR |
-| Gateway nginx | Pérdida del punto de entrada | Dos nginx con IP virtual (keepalived/VRRP) o un balanceador gestionado; DNS con múltiples registros A |
-| Host Docker único | Toda la infraestructura en una máquina | Orquestación multi-nodo (Kubernetes/Swarm) con antiafinidad entre réplicas |
-| Secretos en `.env` | Compromiso de credenciales | Gestor de secretos (Vault, AWS Secrets Manager) y rotación de la clave JWT |
+| SPOF | Riesgo | Mitigación propuesta | Por qué no se implementa en este taller |
+|---|---|---|---|
+| PostgreSQL | Pérdida total del servicio | Replicación primaria/secundaria con failover automático (Patroni/`repmgr`), o base gestionada multi-AZ (RDS, Cloud SQL); copias de respaldo con PITR | Requiere un segundo nodo de base de datos y un orquestador de failover; en un solo host Docker no hay a dónde conmutar. En producción esto lo resuelve la base de datos gestionada, no código propio |
+| Gateway nginx | Pérdida del punto de entrada | Dos nginx con IP virtual (`keepalived`/VRRP) o un balanceador gestionado (ALB/NLB/Ingress); DNS con múltiples registros A | Una VIP entre dos contenedores del mismo host no protege contra la falla que más importa (la del host); en la nube esta redundancia la da el balanceador gestionado por defecto |
+| Host Docker único | Toda la infraestructura en una máquina | Orquestación multi-nodo (Kubernetes/Swarm) con antiafinidad entre réplicas | Fuera del alcance del taller (una sola máquina de desarrollo); es la causa raíz de los dos SPOF anteriores |
+| Secretos en `.env` | Compromiso de credenciales | Gestor de secretos (Vault, AWS Secrets Manager) y rotación de la clave JWT | Aceptable para un entorno de taller no expuesto a Internet; documentado como pendiente antes de cualquier despliegue real |
 
 ## 5. Evidencia experimental
 

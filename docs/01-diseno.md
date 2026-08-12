@@ -168,7 +168,7 @@ Solo el gateway publica puertos. PostgreSQL nunca es alcanzable desde el host.
 | 3 | Puertos y adaptadores en el Tier 2 | Servicios que usan el ORM directamente | Permite probar el negocio sin base de datos y aísla el cambio de motor |
 | 4 | Argon2id para las contraseñas | SHA-256 / MD5 | Resistente a GPU; recomendación OWASP |
 | 5 | El Tier 1 valida el token llamando a `/verify` | Que el Tier 1 decodifique el JWT | La autoridad sobre la sesión queda en un solo lugar; el Tier 1 no necesita la clave secreta |
-| 6 | nginx como balanceador único | Un balanceador por tier | Simplicidad para el taller; se documenta como punto único de falla y su mitigación |
+| 6 | nginx como balanceador único | Un balanceador por tier | Replicar el balanceador de entrada requiere infraestructura fuera del alcance de un host Docker único (VIP, multi-nodo); se documenta como SPOF conocido y se explica por qué en producción lo resuelve la plataforma, no la aplicación — ver [02-disponibilidad §3.1](02-disponibilidad.md#31-alcance-de-la-meta-9999-en-este-taller) |
 | 7 | Repositorio + Unit of Work | Consultas SQL dispersas | Una transacción por caso de uso hace posible el rollback como táctica de recuperación |
 
 ## 8. Trazabilidad requisito → implementación
