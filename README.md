@@ -74,6 +74,21 @@ make smoke                              # imprime la traza usada
 docker compose logs | grep <request_id> # la historia completa de esa petición
 ```
 
+## Observabilidad activa
+
+`make up` levanta también métricas, alertas y dashboards, sin tocar la lógica
+de negocio (detalle en [docs/03-observabilidad.md](docs/03-observabilidad.md)):
+
+| Servicio | URL | Qué muestra |
+|---|---|---|
+| Prometheus | <http://localhost:9090> | Métricas de las 4 instancias de app + reglas de alerta (`/alerts`) |
+| Alertmanager | <http://localhost:9093> | Alertas activas (instancia caída, tasa de error alta, circuit breaker abierto) |
+| Grafana | <http://localhost:3000> (admin/admin) | Dashboard "Taller 1 - Vision general" ya provisionado (instancias vivas, total de peticiones, peticiones/s por servicio, tasa de error) |
+
+Cada instancia de `web` y `auth-service` expone `/metrics` (Prometheus,
+vía `prometheus-fastapi-instrumentator`). Alertmanager no está conectado a
+Slack/email a propósito, para no depender de credenciales externas.
+
 ## Documentación
 
 | Documento | Contenido |
@@ -95,6 +110,7 @@ docker compose logs | grep <request_id> # la historia completa de esa petición
 ├── gateway/nginx.conf   # balanceador y detección pasiva de fallas
 ├── docker-compose.yml   # despliegue de 6 contenedores
 ├── scripts/             # smoke.sh (end-to-end) y chaos.sh (tolerancia a fallas)
+├── monitoring/          # Prometheus, Alertmanager y provisioning de Grafana
 └── docs/                # diseño, disponibilidad, observabilidad y pruebas
 ```
 

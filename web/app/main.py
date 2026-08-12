@@ -10,6 +10,7 @@ import httpx
 from fastapi import FastAPI, Request, status
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.controllers import auth_controller, health_controller, home_controller
 from app.core.config import get_settings
@@ -60,6 +61,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Portal de Autenticación", version="1.0.0", lifespan=lifespan,
                   docs_url=None, redoc_url=None)
     app.add_middleware(CorrelationMiddleware)
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
     app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")),
               name="static")
 

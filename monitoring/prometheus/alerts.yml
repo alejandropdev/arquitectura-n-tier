@@ -1,0 +1,33 @@
+groups:
+  - name: disponibilidad
+    rules:
+      - alert: InstanceDown
+        expr: up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instancia {{ $labels.instance }} caída"
+          description: "El job {{ $labels.job }} no responde a scrape desde hace 30s."
+
+      - alert: HighErrorRate
+        expr: |
+          sum by (job) (rate(http_requests_total{status=~"5.."}[2m]))
+          /
+          sum by (job) (rate(http_requests_total[2m]))
+          > 0.05
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tasa de error alta en {{ $labels.job }}"
+          description: "Más del 5% de las peticiones a {{ $labels.job }} devolvieron 5xx en los últimos 2 minutos."
+
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state == 2
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker abierto hacia {{ $labels.dependency }}"
+          description: "web dejó de llamar a {{ $labels.dependency }} porque el circuito está abierto."

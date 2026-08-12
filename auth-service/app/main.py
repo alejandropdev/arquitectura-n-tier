@@ -10,6 +10,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.api.error_handlers import register_error_handlers
 from app.api.routers import auth, health
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.add_middleware(CorrelationMiddleware)
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
     register_error_handlers(app)
     app.include_router(health.router)
     app.include_router(auth.router)

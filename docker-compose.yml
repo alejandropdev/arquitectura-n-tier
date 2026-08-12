@@ -105,8 +105,56 @@ services:
     restart: unless-stopped
     networks: [appnet]
 
+  # ---------------- Observabilidad ----------------
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+    networks: [appnet]
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports:
+      - "9093:9093"
+    environment:
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml.template:/etc/alertmanager/alertmanager.yml.template:ro
+    # El .template no admite variables de entorno directamente; se sustituyen
+    # con sed antes de arrancar y el resultado se escribe en /tmp (writable).
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sed -e "s#__SMTP_USER__#$$SMTP_USER#g" \
+            -e "s#__SMTP_PASSWORD__#$$SMTP_PASSWORD#g" \
+            -e "s#__ALERT_EMAIL_TO__#$$ALERT_EMAIL_TO#g" \
+            /etc/alertmanager/alertmanager.yml.template > /tmp/alertmanager.yml &&
+        exec /bin/alertmanager --config.file=/tmp/alertmanager.yml --storage.path=/alertmanager
+    restart: unless-stopped
+    networks: [appnet]
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on: [prometheus]
+    restart: unless-stopped
+    networks: [appnet]
+
 volumes:
   pgdata:
+  prometheus-data:
+  grafana-data:
 
 networks:
   appnet:

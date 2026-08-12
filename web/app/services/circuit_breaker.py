@@ -15,9 +15,18 @@ from __future__ import annotations
 import time
 from enum import Enum
 
+from prometheus_client import Gauge
+
 from app.core.logging import audit, get_logger
 
 _logger = get_logger("services")
+
+_STATE_VALUES = {"cerrado": 0, "semiabierto": 1, "abierto": 2}
+_breaker_state_gauge = Gauge(
+    "circuit_breaker_state",
+    "Estado del circuit breaker hacia una dependencia (0=cerrado, 1=semiabierto, 2=abierto)",
+    ["dependency"],
+)
 
 
 class State(str, Enum):
@@ -74,6 +83,7 @@ class CircuitBreaker:
 
     def _transition(self, new_state: State, reason: str) -> None:
         previous, self._state = self._state, new_state
+        _breaker_state_gauge.labels(dependency=self._name).set(_STATE_VALUES[new_state.value])
         audit(_logger, "breaker.transition", "INFO", component="CircuitBreaker", actor="system",
               message=f"Circuito {previous.value} -> {new_state.value}: {reason}",
               dependency=self._name, previous_state=previous.value, new_state=new_state.value)

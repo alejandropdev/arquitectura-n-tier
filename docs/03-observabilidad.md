@@ -124,3 +124,39 @@ Dos garantías verificadas por pruebas:
    (`test_login_con_el_microservicio_caido_muestra_503`).
 2. **Nada se pierde para el operador**: el *catch-all* registra la excepción con
    `stacktrace` completo antes de responder.
+
+## 6. Observabilidad activa (métricas y alertas)
+
+Los logs JSON son útiles para investigar un incidente ya ocurrido, pero no
+avisan de un problema en curso. Se agregó una capa de métricas y alertas
+sobre `docker-compose.yml`, sin tocar la lógica de negocio:
+
+| Componente | Rol | URL |
+|---|---|---|
+| `prometheus-fastapi-instrumentator` | Expone `/metrics` en cada instancia de `web` y `auth-service` (latencia, conteo de peticiones, códigos HTTP) | `<instancia>:8000/metrics` |
+| Gauge `circuit_breaker_state` | Métrica de negocio agregada a mano en `circuit_breaker.py` (0=cerrado, 1=semiabierto, 2=abierto) | expuesta junto a las demás en `/metrics` |
+| **Prometheus** | Recolecta las métricas de las 4 instancias de aplicación; evalúa las reglas de alerta | `localhost:9090` |
+| **Alertmanager** | Agrupa y muestra las alertas que Prometheus dispara | `localhost:9093` |
+| **Grafana** | Visualización; datasource y dashboard quedan provisionados automáticamente, sin configurarlos a mano | `localhost:3000` (admin/admin) |
+
+Reglas de alerta (`monitoring/prometheus/alerts.yml`):
+
+- `InstanceDown` — una réplica deja de responder al scrape por 30s.
+- `HighErrorRate` — más del 5% de las peticiones de un job son 5xx en 2 min.
+- `CircuitBreakerOpen` — el breaker de `web` hacia `auth-service` está abierto.
+
+Alertmanager no está conectado a Slack/email a propósito (evita depender de
+credenciales externas); las alertas se ven en su UI y en
+`localhost:9090/alerts`. Agregar un canal real es una sección adicional en
+`monitoring/alertmanager/alertmanager.yml`.
+
+Para verlo en acción: `bash scripts/chaos.sh` apaga una instancia del Tier 2 —
+la alerta `InstanceDown` pasa a `firing` en unos 30-40s.
+
+Dashboard provisionado (`monitoring/grafana/provisioning/dashboards/overview.json`,
+carga automática al arrancar Grafana, sin pasos manuales): "Taller 1 - Visión
+general", con paneles de instancias vivas, total de peticiones a todos los
+servicios, peticiones/segundo por servicio y tasa de error 5xx por servicio.
+El estado del circuit breaker se puede consultar directamente en Prometheus
+(`circuit_breaker_state`) o en los logs (`docker compose logs web-1 | grep
+breaker`), en vez de tener panel propio en el dashboard.
