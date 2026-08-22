@@ -1,0 +1,11 @@
+export { BaseSeeder } from './seeder.base';
+export { CategoriesSeeder } from './00-categories.seeder';
+export { SuppliersSeeder } from './01-suppliers.seeder';
+export { ProductsSeeder } from './02-products.seeder';
+export { ProductSuppliersSeeder } from './03-product-suppliers.seeder';
+export { WarehousesSeeder } from './04-warehouses.seeder';
+export { ProductVariantsSeeder } from './05-product-variants.seeder';
+export { InventorySeeder } from './06-inventory.seeder';
+export { AuditLogsSeeder } from './07-audit-logs.seeder';
+export { SeederService } from './seeder.service';
+export { SeedersModule } from './seeders.module';

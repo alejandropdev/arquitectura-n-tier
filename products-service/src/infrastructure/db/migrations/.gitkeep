@@ -1,0 +1,2 @@
+# Las migraciones autogeneradas por TypeORM se versionan en esta carpeta.
+# Generar con: npm run migration:generate  (requiere la BD corriendo)

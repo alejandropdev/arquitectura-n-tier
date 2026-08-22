@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <main class="card">
+  <main class="card{% block card_class %}{% endblock %}">
     <header>
       <h1>{% block heading %}Portal de Autenticación{% endblock %}</h1>
       <p class="subtitle">{% block subtitle %}Taller 1 — Arquitectura de Software{% endblock %}</p>

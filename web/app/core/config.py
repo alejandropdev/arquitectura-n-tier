@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     auth_service_url: str = "http://gateway:8081"
     auth_timeout_seconds: float = 3.0
 
+    products_service_url: str = "http://gateway:8081"
+    products_timeout_seconds: float = 3.0
+
     # --- Táctica de recuperación: reintentos con backoff ---
     retry_attempts: int = 3
     retry_backoff_seconds: float = 0.2

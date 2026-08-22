@@ -8,10 +8,15 @@ from app.core.config import get_settings
 from app.core.exceptions import AuthServiceUnavailable, SessionExpired
 from app.models.view_models import SessionUser
 from app.services.auth_client import AuthClient
+from app.services.products_client import ProductsClient
 
 
 def get_auth_client(request: Request) -> AuthClient:
     return request.app.state.auth_client
+
+
+def get_products_client(request: Request) -> ProductsClient:
+    return request.app.state.products_client
 
 
 async def get_current_user(request: Request) -> SessionUser:

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Nuevo producto' if mode == 'create' else 'Editar producto' }}{% endblock %}
+{% block heading %}{{ 'Nuevo producto' if mode == 'create' else 'Editar producto' }}{% endblock %}
+{% block subtitle %}
+  {% if mode == 'edit' and product %}<code>{{ product.id }}</code>{% else %}Tier 2 — products-service{% endif %}
+{% endblock %}
+
+{% block content %}
+<form method="post" action="{{ '/products/new' if mode == 'create' else '/products/' + product.id }}"
+      class="form-grid" novalidate>
+  <label for="name">Nombre</label>
+  <input id="name" name="name" type="text" required minlength="2" maxlength="150"
+         value="{{ product.name if product else '' }}">
+
+  <label for="description">Descripción</label>
+  <textarea id="description" name="description" rows="3" maxlength="2000">{{ product.description if product and product.description else '' }}</textarea>
+
+  <label for="brand">Marca</label>
+  <input id="brand" name="brand" type="text" maxlength="100"
+         value="{{ product.brand if product and product.brand else '' }}">
+
+  <label for="categoryId">Categoría</label>
+  <select id="categoryId" name="categoryId" required>
+    <option value="" disabled {{ 'selected' if not (product and product.categoryId) else '' }}>
+      Seleccione una categoría
+    </option>
+    {% for category in categories %}
+      <option value="{{ category.id }}"
+        {{ 'selected' if product and product.categoryId == category.id else '' }}>
+        {{ category.label }}
+      </option>
+    {% endfor %}
+  </select>
+
+  <label for="status">Estado</label>
+  <select id="status" name="status">
+    {% for s in statuses %}
+      <option value="{{ s }}"
+        {{ 'selected' if (product and product.status == s) or (not product and s == 'borrador') else '' }}>
+        {{ s }}
+      </option>
+    {% endfor %}
+  </select>
+
+  {% if mode == 'edit' and product and product.createdAt %}
+  <dl class="details" style="margin-top: 1rem;">
+    <dt>Creado</dt><dd>{{ product.createdAt }}</dd>
+    <dt>Actualizado</dt><dd>{{ product.updatedAt }}</dd>
+  </dl>
+  {% endif %}
+
+  <div class="form-actions">
+    <a href="/products"><button type="button" class="secondary">Cancelar</button></a>
+    <button type="submit">{{ 'Crear producto' if mode == 'create' else 'Guardar cambios' }}</button>
+  </div>
+</form>
+
+{% if mode == 'edit' and product and product.status != 'descontinuado' %}
+<form method="post" action="/products/{{ product.id }}/discontinue" style="margin-top: 0.8rem;"
+      onsubmit="return confirm('¿Descontinuar este producto? Esta acción no se puede deshacer.');">
+  <button type="submit" class="danger">Descontinuar producto</button>
+</form>
+{% endif %}
+
+<p class="muted"><a href="/products">Volver al catálogo</a></p>
+{% endblock %}
