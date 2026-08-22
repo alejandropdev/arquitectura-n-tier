@@ -51,6 +51,11 @@ class RegisterUser:
                         username=username,
                         email=email,
                         password_hash=self._hasher.hash(command.password),
+                        # El registro público siempre asigna "user": el
+                        # esquema `RegisterRequest` usa `extra="forbid"`, así
+                        # que un cliente no puede inyectar `role` en el
+                        # cuerpo de la petición para auto-promoverse.
+                        role="user",
                         created_at=self._clock.now(),
                     )
                 )

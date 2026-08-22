@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     products_service_url: str = "http://gateway:8081"
     products_timeout_seconds: float = 3.0
 
+    # --- Seguridad / tokens (Taller 2, Requerimiento 9) ---
+    # Mismas variables que usa auth-service: `web` no valida sesión con
+    # esto (eso lo sigue haciendo /verify), solo decodifica localmente para
+    # leer `role` y mostrarlo en la vista — ver `controllers/dependencies.py`.
+    jwt_secret: str = "cambiame-en-produccion"
+    jwt_algorithm: str = "HS256"
+    jwt_issuer: str = "auth-service"
+
     # --- Táctica de recuperación: reintentos con backoff ---
     retry_attempts: int = 3
     retry_backoff_seconds: float = 0.2

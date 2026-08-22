@@ -11,6 +11,9 @@ x-auth-env: &auth-env
   DATABASE_URL: postgresql+psycopg://${POSTGRES_USER_AUTH:-auth}:${POSTGRES_PASSWORD_AUTH:-auth}@auth-db:5432/${POSTGRES_DB_AUTH:-authdb}
   JWT_SECRET: ${JWT_SECRET:-cambiame-en-produccion}
   JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-30}
+  JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+  JWT_ISSUER: ${JWT_ISSUER:-auth-service}
+  JWT_AUDIENCES: ${JWT_AUDIENCES:-auth-service,products-service}
   MAX_FAILED_ATTEMPTS: ${MAX_FAILED_ATTEMPTS:-5}
   LOCKOUT_SECONDS: ${LOCKOUT_SECONDS:-300}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -23,6 +26,12 @@ x-web-env: &web-env
   RETRY_ATTEMPTS: ${RETRY_ATTEMPTS:-3}
   BREAKER_FAILURE_THRESHOLD: ${BREAKER_FAILURE_THRESHOLD:-5}
   BREAKER_RECOVERY_SECONDS: ${BREAKER_RECOVERY_SECONDS:-15}
+  # Mismo secreto/algoritmo/emisor que auth-service (Taller 2, Requerimiento
+  # 9): web decodifica localmente solo para leer `role`, ver
+  # web/app/controllers/dependencies.py.
+  JWT_SECRET: ${JWT_SECRET:-cambiame-en-produccion}
+  JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+  JWT_ISSUER: ${JWT_ISSUER:-auth-service}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
 
 # `env.config.ts` de products-service lee variables discretas (DB_HOST, DB_USERNAME, ...),
@@ -60,7 +69,12 @@ services:
 
   # ---------------- TIER 2: lógica de negocio (auth — redundancia activa) ----------------
   auth-service-1:
-    build: ./auth-service
+    # context: raíz del repo (no ./auth-service) para poder instalar la
+    # librería compartida libs/auth_common (Taller 2, Requerimiento 9) — ver
+    # auth-service/Dockerfile.
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
     environment:
       <<: *auth-env
       INSTANCE_ID: auth-service-1
@@ -71,7 +85,9 @@ services:
     networks: [appnet]
 
   auth-service-2:
-    build: ./auth-service
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
     environment:
       <<: *auth-env
       INSTANCE_ID: auth-service-2
@@ -143,7 +159,9 @@ services:
 
   # ---------------- TIER 1: presentación (redundancia activa) ----------------
   web-1:
-    build: ./web
+    build:
+      context: .
+      dockerfile: web/Dockerfile
     environment:
       <<: *web-env
       INSTANCE_ID: web-1
@@ -151,7 +169,9 @@ services:
     networks: [appnet]
 
   web-2:
-    build: ./web
+    build:
+      context: .
+      dockerfile: web/Dockerfile
     environment:
       <<: *web-env
       INSTANCE_ID: web-2
@@ -166,6 +186,10 @@ services:
       - "8081:8081"   # API del Tier 2 (expuesta solo para pruebas del taller)
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Rate limiting + validación de token antes de enrutar (Taller 2,
+      # Requerimiento 9a/10) — bloques separados del nginx.conf de Carlos,
+      # ver gateway/conf.d/.
+      - ./gateway/conf.d:/etc/nginx/conf.d:ro
     # nginx resuelve los nombres de los upstreams al arrancar: los contenedores
     # deben existir antes que él.
     depends_on: [web-1, web-2, auth-service-1, auth-service-2, products-service-1, products-service-2]
