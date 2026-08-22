@@ -35,9 +35,11 @@ logs-auth:       ## Logs del Tier 2
 
 venv:            ## Entorno virtual local para las pruebas
 	python3 -m venv .venv
+	./.venv/bin/pip install -q -e "libs/auth_common[fastapi,dev]"
 	./.venv/bin/pip install -q -r auth-service/requirements-dev.txt -r web/requirements-dev.txt
 
-test: venv       ## Ejecuta todas las pruebas (Tier 1 + Tier 2 + Tier 3)
+test: venv       ## Ejecuta todas las pruebas (Tier 1 + Tier 2 + Tier 3 + libs/auth_common)
+	cd libs/auth_common && ../.venv/bin/python -m pytest
 	cd auth-service && ../.venv/bin/python -m pytest
 	cd web && ../.venv/bin/python -m pytest
 
@@ -51,4 +53,7 @@ smoke:           ## Prueba end-to-end contra el despliegue en Docker
 chaos:           ## Demuestra la tolerancia a fallas (apaga una instancia del Tier 2)
 	bash scripts/chaos.sh
 
-.PHONY: help env build up down clean ps logs logs-auth venv test coverage smoke chaos
+rate-limit:      ## Verifica que el gateway aplique el límite de peticiones (429)
+	bash scripts/rate_limit_test.sh
+
+.PHONY: help env build up down clean ps logs logs-auth venv test coverage smoke chaos rate-limit

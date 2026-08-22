@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.api.error_handlers import register_error_handlers
-from app.api.routers import auth, health
+from app.api.routers import auth, health, users
 from app.core.config import get_settings
 from app.core.correlation import CorrelationMiddleware
 from app.core.logging import audit, configure_logging, get_logger
@@ -75,6 +75,7 @@ def create_app() -> FastAPI:
     register_error_handlers(app)
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(users.router)
     return app
 
 
