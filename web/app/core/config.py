@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     auth_service_url: str = "http://gateway:8081"
     auth_timeout_seconds: float = 3.0
 
+    products_service_url: str = "http://gateway:8081"
+    products_timeout_seconds: float = 3.0
+
     # --- Seguridad / tokens (Taller 2, Requerimiento 9) ---
     # Mismas variables que usa auth-service: `web` no valida sesión con
     # esto (eso lo sigue haciendo /verify), solo decodifica localmente para

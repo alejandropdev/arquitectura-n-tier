@@ -12,13 +12,19 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from app.controllers import auth_controller, health_controller, home_controller
+from app.controllers import (
+    auth_controller,
+    health_controller,
+    home_controller,
+    products_controller,
+)
 from app.core.config import get_settings
 from app.core.correlation import CorrelationMiddleware
-from app.core.exceptions import AuthServiceUnavailable, PresentationError
+from app.core.exceptions import AuthServiceUnavailable, PresentationError, ProductServiceUnavailable
 from app.core.logging import audit, configure_logging, get_logger
 from app.services.auth_client import AuthClient
 from app.services.circuit_breaker import CircuitBreaker
+from app.services.products_client import ProductsClient
 from app.views.renderer import templates
 
 _logger = get_logger("controllers")
@@ -42,6 +48,23 @@ async def lifespan(app: FastAPI):
             recovery_seconds=settings.breaker_recovery_seconds,
         ),
     )
+
+    products_http_client = httpx.AsyncClient(
+        base_url=settings.products_service_url,
+        timeout=httpx.Timeout(settings.products_timeout_seconds),
+        limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+    )
+    app.state.products_http_client = products_http_client
+    app.state.products_client = ProductsClient(
+        products_http_client,
+        settings,
+        CircuitBreaker(
+            failure_threshold=settings.breaker_failure_threshold,
+            recovery_seconds=settings.breaker_recovery_seconds,
+            name="products-service",
+        ),
+    )
+
     audit(_logger, "service.startup", "SUCCESS", component="main", actor="system",
           message="Aplicación web iniciada", instance=settings.instance_id,
           backend=settings.auth_service_url)
@@ -49,6 +72,7 @@ async def lifespan(app: FastAPI):
     yield
 
     await http_client.aclose()
+    await products_http_client.aclose()
     audit(_logger, "service.shutdown", "SUCCESS", component="main", actor="system",
           message="Aplicación web detenida")
 
@@ -68,6 +92,7 @@ def create_app() -> FastAPI:
     app.include_router(home_controller.router)
     app.include_router(health_controller.router)
     app.include_router(auth_controller.router)
+    app.include_router(products_controller.router)
 
     _register_error_handlers(app)
     return app
@@ -78,6 +103,17 @@ def _register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(AuthServiceUnavailable)
     async def _unavailable(request: Request, exc: AuthServiceUnavailable) -> HTMLResponse:
+        audit(_logger, "web.error", "FAILURE", component="main", message=exc.message,
+              level=logging.ERROR, error_code=exc.code, path=request.url.path)
+        return templates.TemplateResponse(
+            request, "error.html",
+            {"title": "Servicio no disponible", "message": exc.message, "status_code": 503},
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    @app.exception_handler(ProductServiceUnavailable)
+    async def _products_unavailable(request: Request,
+                                     exc: ProductServiceUnavailable) -> HTMLResponse:
         audit(_logger, "web.error", "FAILURE", component="main", message=exc.message,
               level=logging.ERROR, error_code=exc.code, path=request.url.path)
         return templates.TemplateResponse(

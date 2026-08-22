@@ -44,3 +44,26 @@ class SessionExpired(PresentationError):
 
     def __init__(self) -> None:
         super().__init__("Su sesión expiró. Vuelva a iniciar sesión.")
+
+
+class ProductServiceUnavailable(PresentationError):
+    """El Tier 2 de productos no respondió (timeout, conexión, 5xx) o el circuito está abierto."""
+
+    code = "products_service_unavailable"
+
+    def __init__(self, message: str = "El servicio de productos no está disponible. "
+                                      "Intente de nuevo en unos segundos.") -> None:
+        super().__init__(message)
+
+
+class ProductApiError(PresentationError):
+    """Respuesta 4xx del Tier 2 de productos: error de negocio, no una falla del sistema."""
+
+    code = "products_api_error"
+
+    def __init__(self, code: str, message: str, status_code: int,
+                 detail: dict | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.status_code = status_code
+        self.detail = detail or {}

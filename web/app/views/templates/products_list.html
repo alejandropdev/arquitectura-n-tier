@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Productos{% endblock %}
+{% block card_class %} card--wide{% endblock %}
+{% block heading %}Catálogo de productos{% endblock %}
+{% block subtitle %}Tier 2 — products-service{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+  <span class="muted" style="margin:0;">
+    {% if meta %}{{ meta.total }} producto{{ 's' if meta.total != 1 else '' }}{% endif %}
+  </span>
+  <a href="/products/new"><button type="button">Nuevo producto</button></a>
+</div>
+
+<form method="get" action="/products" class="filters">
+  <div>
+    <label for="search">Buscar</label>
+    <input id="search" name="search" type="text" value="{{ filters.search or '' }}"
+           maxlength="150" placeholder="Nombre...">
+  </div>
+  <div>
+    <label for="status">Estado</label>
+    <select id="status" name="status">
+      <option value="" {{ 'selected' if not filters.status else '' }}>Todos (sin descontinuados)</option>
+      {% for s in statuses %}
+        <option value="{{ s }}" {{ 'selected' if filters.status == s else '' }}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label for="brand">Marca</label>
+    <input id="brand" name="brand" type="text" value="{{ filters.brand or '' }}" maxlength="100">
+  </div>
+  <div>
+    <label for="categoryId">Categoría</label>
+    <select id="categoryId" name="categoryId">
+      <option value="" {{ 'selected' if not filters.category_id else '' }}>Todas</option>
+      {% for category in categories %}
+        <option value="{{ category.id }}"
+          {{ 'selected' if filters.category_id == category.id else '' }}>
+          {{ category.label }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label for="sort">Ordenar por</label>
+    <select id="sort" name="sort">
+      <option value="createdAt" {{ 'selected' if filters.sort == 'createdAt' else '' }}>Fecha de creación</option>
+      <option value="name" {{ 'selected' if filters.sort == 'name' else '' }}>Nombre</option>
+    </select>
+  </div>
+  <div>
+    <label for="order">Orden</label>
+    <select id="order" name="order">
+      <option value="DESC" {{ 'selected' if filters.order == 'DESC' else '' }}>Descendente</option>
+      <option value="ASC" {{ 'selected' if filters.order == 'ASC' else '' }}>Ascendente</option>
+    </select>
+  </div>
+  <div class="filters-actions">
+    <button type="submit">Filtrar</button>
+    <a href="/products"><button type="button" class="secondary">Limpiar</button></a>
+  </div>
+</form>
+
+{% if products %}
+<table>
+  <thead>
+    <tr>
+      <th>Nombre</th>
+      <th>Marca</th>
+      <th>Estado</th>
+      <th>Creado</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for product in products %}
+    <tr>
+      <td><a href="/products/{{ product.id }}">{{ product.name }}</a></td>
+      <td>{{ product.brand or '—' }}</td>
+      <td><span class="badge badge-{{ product.status }}">{{ product.status }}</span></td>
+      <td>{{ product.createdAt[:10] }}</td>
+      <td class="actions">
+        <a href="/products/{{ product.id }}"><button type="button" class="secondary">Editar</button></a>
+        {% if product.status != 'descontinuado' %}
+        <form method="post" action="/products/{{ product.id }}/discontinue"
+              onsubmit="return confirm('¿Descontinuar este producto? Esta acción no se puede deshacer.');">
+          <button type="submit" class="danger">Descontinuar</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="pagination">
+  <span>Página {{ meta.page }} de {{ meta.totalPages }}</span>
+  <div class="pagination-links">
+    {% set base_params = {'size': filters.size, 'sort': filters.sort, 'order': filters.order} %}
+    {% if filters.search %}{% set _ = base_params.update({'search': filters.search}) %}{% endif %}
+    {% if filters.status %}{% set _ = base_params.update({'status': filters.status}) %}{% endif %}
+    {% if filters.brand %}{% set _ = base_params.update({'brand': filters.brand}) %}{% endif %}
+    {% if filters.category_id %}{% set _ = base_params.update({'categoryId': filters.category_id}) %}{% endif %}
+
+    {% if meta.hasPrevious %}
+      <a href="/products?{% for k, v in base_params.items() %}{{ k }}={{ v }}&{% endfor %}page={{ meta.page - 1 }}">
+        <button type="button" class="secondary">Anterior</button>
+      </a>
+    {% endif %}
+    {% if meta.hasNext %}
+      <a href="/products?{% for k, v in base_params.items() %}{{ k }}={{ v }}&{% endfor %}page={{ meta.page + 1 }}">
+        <button type="button" class="secondary">Siguiente</button>
+      </a>
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<p class="empty-state">No hay productos que coincidan con estos filtros.</p>
+{% endif %}
+{% endblock %}

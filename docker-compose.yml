@@ -5,10 +5,10 @@
 #
 # Solo el gateway publica puertos; la base de datos nunca se expone al host.
 
-name: taller1-auth
+name: taller2-products
 
 x-auth-env: &auth-env
-  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-auth}:${POSTGRES_PASSWORD:-auth}@postgres:5432/${POSTGRES_DB:-authdb}
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER_AUTH:-auth}:${POSTGRES_PASSWORD_AUTH:-auth}@auth-db:5432/${POSTGRES_DB_AUTH:-authdb}
   JWT_SECRET: ${JWT_SECRET:-cambiame-en-produccion}
   JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-30}
   JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
@@ -21,6 +21,8 @@ x-auth-env: &auth-env
 x-web-env: &web-env
   AUTH_SERVICE_URL: http://gateway:8081
   AUTH_TIMEOUT_SECONDS: ${AUTH_TIMEOUT_SECONDS:-3}
+  PRODUCTS_SERVICE_URL: http://gateway:8081
+  PRODUCTS_TIMEOUT_SECONDS: ${PRODUCTS_TIMEOUT_SECONDS:-3}
   RETRY_ATTEMPTS: ${RETRY_ATTEMPTS:-3}
   BREAKER_FAILURE_THRESHOLD: ${BREAKER_FAILURE_THRESHOLD:-5}
   BREAKER_RECOVERY_SECONDS: ${BREAKER_RECOVERY_SECONDS:-15}
@@ -32,28 +34,40 @@ x-web-env: &web-env
   JWT_ISSUER: ${JWT_ISSUER:-auth-service}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
 
+# `env.config.ts` de products-service lee variables discretas (DB_HOST, DB_USERNAME, ...),
+# no una URL de conexión: por eso este ancla no usa DATABASE_URL como la de auth.
+x-products-env: &products-env
+  DB_HOST: products-db
+  DB_PORT: 5432
+  DB_USERNAME: ${POSTGRES_USER_PRODUCTS:-products}
+  DB_PASSWORD: ${POSTGRES_PASSWORD_PRODUCTS:-products}
+  DB_NAME: ${POSTGRES_DB_PRODUCTS:-productsdb}
+  API_PREFIX: api/v1
+  PORT: 3000
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
 services:
 
-  # ---------------- TIER 3: datos ----------------
-  postgres:
+  # ---------------- TIER 3: datos (auth-service) ----------------
+  auth-db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-auth}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-auth}
-      POSTGRES_DB: ${POSTGRES_DB:-authdb}
+      POSTGRES_USER: ${POSTGRES_USER_AUTH:-auth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_AUTH:-auth}
+      POSTGRES_DB: ${POSTGRES_DB_AUTH:-authdb}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - auth-pgdata:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d:ro
-    healthcheck:                      # detección de fallas
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-auth} -d ${POSTGRES_DB:-authdb}"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_AUTH:-auth} -d ${POSTGRES_DB_AUTH:-authdb}"]
       interval: 10s
       timeout: 3s
       retries: 5
       start_period: 10s
-    restart: unless-stopped           # recuperación: reinicio automático
+    restart: unless-stopped
     networks: [appnet]
 
-  # ---------------- TIER 2: lógica de negocio (redundancia activa) ----------------
+  # ---------------- TIER 2: lógica de negocio (auth — redundancia activa) ----------------
   auth-service-1:
     # context: raíz del repo (no ./auth-service) para poder instalar la
     # librería compartida libs/auth_common (Taller 2, Requerimiento 9) — ver
@@ -65,7 +79,7 @@ services:
       <<: *auth-env
       INSTANCE_ID: auth-service-1
     depends_on:
-      postgres:
+      auth-db:
         condition: service_healthy
     restart: unless-stopped
     networks: [appnet]
@@ -78,8 +92,68 @@ services:
       <<: *auth-env
       INSTANCE_ID: auth-service-2
     depends_on:
-      postgres:
+      auth-db:
         condition: service_healthy
+    restart: unless-stopped
+    networks: [appnet]
+
+  # ---------------- TIER 3: datos (products-service) ----------------
+  products-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER_PRODUCTS:-products}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_PRODUCTS:-products}
+      POSTGRES_DB: ${POSTGRES_DB_PRODUCTS:-productsdb}
+    volumes:
+      - products-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_PRODUCTS:-products} -d ${POSTGRES_DB_PRODUCTS:-productsdb}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks: [appnet]
+
+  # `synchronize` está en `false` a propósito (data-source.ts): el esquema solo
+  # cambia por migraciones versionadas. Este job corre una vez, antes que las
+  # instancias de la app, para no correr `migration:run` dos veces en paralelo.
+  products-service-migrate:
+    build: ./products-service
+    environment:
+      <<: *products-env
+    entrypoint: ["node"]
+    command: ["node_modules/typeorm/cli.js", "migration:run", "-d", "dist/infrastructure/db/data-source.js"]
+    depends_on:
+      products-db:
+        condition: service_healthy
+    restart: "no"
+    networks: [appnet]
+
+  # ---------------- TIER 2: lógica de negocio (products — redundancia activa) ----------------
+  products-service-1:
+    build: ./products-service
+    environment:
+      <<: *products-env
+      INSTANCE_ID: products-service-1
+    depends_on:
+      products-db:
+        condition: service_healthy
+      products-service-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks: [appnet]
+
+  products-service-2:
+    build: ./products-service
+    environment:
+      <<: *products-env
+      INSTANCE_ID: products-service-2
+    depends_on:
+      products-db:
+        condition: service_healthy
+      products-service-migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks: [appnet]
 
@@ -118,7 +192,7 @@ services:
       - ./gateway/conf.d:/etc/nginx/conf.d:ro
     # nginx resuelve los nombres de los upstreams al arrancar: los contenedores
     # deben existir antes que él.
-    depends_on: [web-1, web-2, auth-service-1, auth-service-2]
+    depends_on: [web-1, web-2, auth-service-1, auth-service-2, products-service-1, products-service-2]
     healthcheck:
       # 127.0.0.1 y no `localhost`: en esta imagen `localhost` resuelve a ::1 y
       # nginx escucha en IPv4, así que la sonda se conectaría al sitio equivocado.
@@ -175,10 +249,26 @@ services:
     restart: unless-stopped
     networks: [appnet]
 
+  # ---------------- Administración de base de datos ----------------
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on: [products-db]
+    restart: unless-stopped
+    networks: [appnet]
+
 volumes:
-  pgdata:
+  auth-pgdata:
+  products-pgdata:
   prometheus-data:
   grafana-data:
+  pgadmin-data:
 
 networks:
   appnet:
