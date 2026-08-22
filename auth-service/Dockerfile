@@ -10,8 +10,14 @@ WORKDIR /build
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN python -m venv /opt/venv && /opt/venv/bin/pip install -r requirements.txt
+# Librería compartida de autenticación (Taller 2, Requerimiento 9): se instala
+# como paquete real, no se copia su código dentro de app/. Requiere que el
+# contexto de build sea la raíz del repo (ver docker-compose.yml).
+COPY libs/auth_common ./libs/auth_common
+COPY auth-service/requirements.txt .
+RUN python -m venv /opt/venv \
+    && /opt/venv/bin/pip install ./libs/auth_common \
+    && /opt/venv/bin/pip install -r requirements.txt
 
 
 FROM python:3.13-slim AS runtime
@@ -27,7 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 COPY --from=builder /opt/venv /opt/venv
 
 WORKDIR /app
-COPY --chown=appuser:appuser app ./app
+COPY --chown=appuser:appuser auth-service/app ./app
 
 USER appuser
 EXPOSE 8000

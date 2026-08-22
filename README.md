@@ -32,10 +32,11 @@ make down      # detener   /   make clean para borrar también los datos
 ## Verificación
 
 ```bash
-make test      # 87 pruebas (Tier 1 + Tier 2 + Tier 3)
-make coverage  # con reporte de cobertura (94% / 95%)
-make smoke     # end-to-end contra el despliegue en Docker
-make chaos     # apaga una instancia del Tier 2 y mide la disponibilidad
+make test        # Tier 1 + Tier 2 + Tier 3 + libs/auth_common
+make coverage    # con reporte de cobertura
+make smoke       # end-to-end contra el despliegue en Docker
+make chaos       # apaga una instancia del Tier 2 y mide la disponibilidad
+make rate-limit  # confirma que el gateway responde 429 bajo ráfaga (Taller 2)
 ```
 
 ## Los tres tiers
@@ -123,3 +124,29 @@ Slack/email a propósito, para no depender de credenciales externas.
 - El puerto 8081 se publica **solo para las pruebas del taller**; en producción el
   Tier 2 no debería ser accesible desde fuera.
 - Cambie `JWT_SECRET` en `.env` antes de cualquier despliegue real.
+
+## Taller 2 — Seguridad y rate limiting (Alejandro)
+
+Ver [docs/05-taller2-plan.md](docs/05-taller2-plan.md) para el alcance completo
+del Taller 2 y la distribución del trabajo. Esta sección documenta solo el
+Requerimiento 9 (seguridad) y el 10 (rate limiting).
+
+- **Claims del JWT**: `sub`, `username`, `role` (`user`|`admin`), `aud`
+  (lista), `iat`, `exp`, `iss`. Un token de login incluye
+  `aud=[auth-service, products-service]` (configurable con `JWT_AUDIENCES`).
+- **`libs/auth_common/`**: librería de autenticación reutilizable — la
+  consumen `auth-service` y `web` (y, cuando exista, `products-service`).
+  Expone decodificación/validación de tokens y dependencias FastAPI
+  (`require_auth`, `require_role`, `require_owner_or_role`). Ver su propio
+  [README](libs/auth_common/README.md).
+- **Gateway (`gateway/conf.d/`)**: `auth_request` valida el token antes de
+  enrutar `/api/v1/users/*` (Requerimiento 9a) contra
+  `GET /api/v1/auth/introspect` (barato, sin BD); `limit_req_zone` aplica
+  límites por IP y por token con `429` como respuesta (Requerimiento 10).
+  Separado de `nginx.conf`/`docker-compose.yml` (balanceo de carga de
+  Carlos) en bloques/`include` propios, según lo acordado en el kickoff.
+- **Autorización por propiedad**: `GET /api/v1/users/{id}` — un usuario solo
+  lee su propio perfil; un `admin` puede leer cualquiera.
+- Pruebas que demuestran los tres puntos del entregable (ownership, audience
+  cruzada entre servicios, límite de peticiones): `libs/auth_common/tests/`,
+  `auth-service/tests/api/test_users_api.py`, `make rate-limit`.

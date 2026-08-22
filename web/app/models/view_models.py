@@ -14,6 +14,7 @@ class SessionUser(BaseModel):
     id: str
     username: str
     email: str
+    role: str = "user"
     expires_at: str | None = None
 
 

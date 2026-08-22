@@ -5,3 +5,4 @@ __pycache__/
 .env
 .coverage
 htmlcov/
+auth_common.egg-info/

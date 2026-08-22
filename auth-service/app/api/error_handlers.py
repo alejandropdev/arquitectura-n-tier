@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -83,6 +83,22 @@ def register_error_handlers(app: FastAPI) -> None:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=_payload(exc.code, "Error interno al procesar la solicitud"),
         )
+
+    @app.exception_handler(HTTPException)
+    async def _http_exception(request: Request, exc: HTTPException) -> JSONResponse:
+        # `auth_common` (Taller 2, Requerimiento 9) señala fallas de
+        # autenticación/autorización con HTTPException, pero ya trae el
+        # sobre uniforme {code,message,request_id,detail} en `exc.detail`
+        # — se devuelve tal cual, sin el anidado `{"detail": ...}` por
+        # defecto de Starlette, para que sea indistinguible de un
+        # DomainError de este mismo servicio.
+        if isinstance(exc.detail, dict) and "code" in exc.detail:
+            audit(_logger, "api.error", "FAILURE", component="error_handlers",
+                  message=str(exc.detail.get("message", "")), level=logging.WARNING,
+                  error_code=exc.detail.get("code"), status_code=exc.status_code,
+                  path=request.url.path)
+            return JSONResponse(status_code=exc.status_code, content=exc.detail)
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
     @app.exception_handler(RequestValidationError)
     async def _validation(request: Request, exc: RequestValidationError) -> JSONResponse:

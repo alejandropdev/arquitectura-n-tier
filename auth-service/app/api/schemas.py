@@ -37,7 +37,21 @@ class UserResponse(BaseModel):
     id: UUID
     username: str
     email: str
+    role: str
     created_at: datetime
+
+
+class UserProfileResponse(BaseModel):
+    id: UUID
+    username: str
+    email: str
+    role: str
+    created_at: datetime
+
+
+class IntrospectResponse(BaseModel):
+    sub: UUID
+    role: str
 
 
 class SessionUserResponse(BaseModel):

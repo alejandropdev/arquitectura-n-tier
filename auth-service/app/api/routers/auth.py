@@ -8,11 +8,13 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, status
+from auth_common.claims import TokenClaims as AuthCommonClaims
+from fastapi import APIRouter, Depends, Request, Response, status
 
-from app.api.dependencies import get_authenticate_user, get_register_user, get_verify_token
+from app.api.dependencies import get_authenticate_user, get_register_user, get_verify_token, require_auth_dep
 from app.api.schemas import (
     ErrorResponse,
+    IntrospectResponse,
     LoginRequest,
     LoginResponse,
     RegisterRequest,
@@ -50,7 +52,7 @@ def register(
         )
     )
     return UserResponse(id=user.id, username=user.username, email=user.email,
-                        created_at=user.created_at)
+                        role=user.role, created_at=user.created_at)
 
 
 @router.post("/login", response_model=LoginResponse, responses=_ERRORS)
@@ -86,3 +88,21 @@ def verify(
     return VerifyResponse(
         valid=True, user_id=identity.user_id, username=identity.username, email=identity.email
     )
+
+
+@router.get("/introspect", response_model=IntrospectResponse, responses={401: {"model": ErrorResponse}})
+def introspect(
+    response: Response,
+    claims: Annotated[AuthCommonClaims, Depends(require_auth_dep)],
+) -> IntrospectResponse:
+    """Validación barata (sin ir a la base de datos) para el `auth_request`
+    del gateway (Taller 2, Requerimiento 9a): solo firma/`iss`/`exp`/`aud`.
+
+    Expone `X-User-Id`/`X-User-Role` como encabezados de respuesta para que
+    nginx los capture con `auth_request_set` (p. ej. para las reglas de
+    rate limiting por token del Requerimiento 10).
+    """
+    actor_var.set(claims.username)
+    response.headers["X-User-Id"] = claims.sub
+    response.headers["X-User-Role"] = claims.role
+    return IntrospectResponse(sub=claims.sub, role=claims.role)

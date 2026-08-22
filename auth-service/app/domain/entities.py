@@ -18,6 +18,7 @@ class User:
     password_hash: str
     id: UUID | None = None
     is_active: bool = True
+    role: str = "user"
     failed_attempts: int = 0
     locked_until: datetime | None = None
     last_login_at: datetime | None = None
